@@ -1,0 +1,211 @@
+import datetime
+import json
+import os
+import random
+import sys
+import spacy
+
+# 1. Load spaCy English Medium Model
+print("Loading Natural Language Processing (NLP) model. Please wait...")
+try:
+    nlp = spacy.load("en_core_web_md")
+except OSError:
+    print("\n❌ Error: The 'en_core_web_md' model is not installed.")
+    print("Please run 'python -m spacy download en_core_web_md' in your terminal and try again.")
+    sys.exit(1)
+
+# 2. Word Database (Based on Simple English Wikipedia - Basic English)
+BASIC_ENGLISH_WORDS = [
+    "account", "addition", "adjustment", "advertisement", "agreement",
+    "air", "amount", "amusement", "animal", "answer", "apparatus",
+    "approval", "argument", "art", "attack", "attempt", "attention",
+    "attraction", "authority", "back", "balance", "base", "behavior",
+    "belief", "birth", "bit", "bite", "blood", "blow", "body",
+    "brass", "bread", "breath", "brother", "building", "burn", "burst",
+    "business", "butter", "canvas", "care", "cause", "chalk", "chance",
+    "change", "cloth", "coal", "color", "comfort", "committee", "company",
+    "comparison", "competition", "condition", "connection", "control",
+    "cook", "copper", "copy", "cork", "cotton", "cough", "country",
+    "cover", "crack", "credit", "crime", "crush", "cry", "current",
+    "damage", "danger", "daughter", "day", "death", "debt", "decision",
+    "degree", "design", "desire", "destruction", "detail", "development",
+    "digestion", "direction", "dirty", "discovery", "discussion", "disease",
+    "disgust", "distance", "distribution", "division", "do", "dog",
+    "door", "doubt", "drink", "driving", "dust", "earth", "edge",
+    "education", "effect", "egg", "elastic", "electric", "end",
+    "engine", "error", "event", "example", "exchange", "existence",
+    "expansion", "experience", "expert", "eye", "face", "fact",
+    "fall", "family", "father", "fear", "feeling", "fiction", "field",
+    "fight", "finger", "fire", "flame", "flight", "flower", "fly",
+    "fold", "food", "force", "form", "friend", "front", "fruit",
+    "future", "garden", "general", "get", "give", "glass", "glove",
+    "go", "goat", "gold", "good", "government", "grain", "grass",
+    "grip", "group", "growth", "guide", "gun", "hair", "hammer",
+    "hand", "harbor", "harmony", "hate", "have", "hearing", "heart",
+    "heat", "help", "high", "history", "hole", "hope", "horse",
+    "hospital", "hour", "house", "humor", "ice", "idea", "impulse",
+    "increase", "industry", "ink", "insect", "instrument", "insurance",
+    "interest", "invention", "iron", "island", "jelly", "join",
+    "journey", "judge", "jump", "keep", "kettle", "key", "kick",
+    "kiss", "knee", "knife", "knot", "knowledge", "land", "language",
+    "laugh", "law", "lead", "leaf", "learning", "leather", "leg",
+    "let", "letter", "level", "library", "lift", "light", "limit",
+    "line", "linen", "lip", "liquid", "list", "look", "loss",
+    "love", "machine", "make", "male", "man", "manager", "map",
+    "mark", "market", "mass", "match", "meal", "measure", "meat",
+    "meeting", "memory", "metal", "middle", "milk", "mind", "mine",
+    "minute", "mist", "mixed", "money", "monkey", "month", "moon",
+    "morning", "mother", "motion", "mountain", "mouth", "move", "music"
+]
+
+DB_FILE = "leaderboard.json"
+
+
+def load_leaderboard():
+    """Loads leaderboard data from the file and automatically deletes past data that is not from today."""
+    today_str = datetime.date.today().strftime("%Y-%m-%d")
+
+    if not os.path.exists(DB_FILE):
+        return []
+
+    try:
+        with open(DB_FILE, "r", encoding="utf-8") as f:
+            leaderboard = json.load(f)
+
+        # Filter only today's data (past data is automatically removed)
+        daily_records = [r for r in leaderboard if r.get("date") == today_str]
+
+        # Rewrite the file with only today's records to keep it fresh
+        with open(DB_FILE, "w", encoding="utf-8") as f:
+            json.dump(daily_records, f, ensure_ascii=False, indent=4)
+
+        return daily_records
+
+    except (json.JSONDecodeError, KeyError):
+        return []
+
+
+def save_score(username, date_str, attempts):
+    """Saves the user's game clearance record to the file."""
+    leaderboard = load_leaderboard()
+    leaderboard.append({
+        "username": username,
+        "date": date_str,
+        "attempts": attempts
+    })
+    with open(DB_FILE, "w", encoding="utf-8") as f:
+        json.dump(leaderboard, f, ensure_ascii=False, indent=4)
+
+
+def display_daily_leaderboard(date_str):
+    """Displays today's user ranking sorted by number of attempts in ascending order."""
+    leaderboard = load_leaderboard()
+    daily_records = [r for r in leaderboard if r["date"] == date_str]
+    daily_records.sort(key=lambda x: x["attempts"])
+
+    print("\n" + "🏆" * 15)
+    print(f"  TODAY'S LEADERBOARD ({date_str})")
+    print("🏆" * 15)
+    print(f"{'Rank':<6}{'Player':<20}{'Total Guesses':<10}")
+    print("-" * 40)
+
+    if not daily_records:
+        print("You are the first one to clear the game today!")
+    else:
+        for index, record in enumerate(daily_records, start=1):
+            print(f"{index:<6}{record['username']:<20}{record['attempts']:<10}")
+    print("-" * 40 + "\n")
+
+
+def calculate_semantic_similarity(word1, word2):
+    """Calculates semantic cosine similarity between two words using spaCy word vectors."""
+    token1 = nlp(word1)
+    token2 = nlp(word2)
+    if not token1.has_vector or not token2.has_vector:
+        return 0.0
+    return round(token1.similarity(token2) * 100, 2)
+
+
+def play_game():
+    # 1. User Authentication
+    print("\n" + "=" * 50)
+    print("      Welcome to Daily Semantic Semantle!")
+    print("=" * 50)
+    username = input("Enter your username: ").strip()
+    if not username:
+        username = "Guest_" + str(random.randint(1000, 9999))
+
+    # 2. Get today's date and fix the target word for the day
+    today_str = datetime.date.today().strftime("%Y-%m-%d")
+
+    random.seed(today_str)
+    target_word = random.choice(BASIC_ENGLISH_WORDS)
+    random.seed(None)  # Reset seed
+
+    history = []
+    attempts = 0
+
+    print("\n" + "=" * 50)
+    print(f" Hello, {username}! Let's guess Today's Secret Word.")
+    print(f" Date: {today_str} | Total Database: {len(BASIC_ENGLISH_WORDS)} words.")
+    print(" Type 'exit' to give up.")
+    print("=" * 50 + "\n")
+
+    while True:
+        guess = input("Enter a word: ").strip().lower()
+
+        if guess == 'exit':
+            print(f"\n🏳️ You gave up! Today's secret word was: **{target_word}**")
+            break
+
+        if not guess.isalpha():
+            print("❌ Please enter a valid English word (letters only).")
+            continue
+
+        if not nlp(guess).has_vector:
+            print("⚠️ This word is not recognized in our NLP dictionary. Try another word.")
+            continue
+
+        attempts += 1
+        similarity_score = calculate_semantic_similarity(guess, target_word)
+
+        # [Correct Guess]
+        if guess == target_word:
+            print("\n" + "*" * 50)
+            print(f"🎉 CONGRATULATIONS! You found the word: **{target_word}**")
+            print(f"📊 Your Total Attempts: {attempts}")
+            print("*" * 50)
+
+            save_score(username, today_str, attempts)
+            display_daily_leaderboard(today_str)
+            break
+
+        # [Incorrect Guess - Update History]
+        if not any(h[0] == guess for h in history):
+            history.append((guess, similarity_score))
+            history.sort(key=lambda x: x[1], reverse=True)
+
+        # Display personal history dashboard
+        print("\n" + "-" * 40)
+        print(f"{'Rank':<6}{'Word':<20}{'Similarity':<10}")
+        print("-" * 40)
+
+        displayed = False
+        for index, (h_word, h_score) in enumerate(history[:10], start=1):
+            if h_word == guess:
+                print(f"👉 {index:<4}{h_word:<20}{h_score:<10} (Current)")
+                displayed = True
+            else:
+                print(f"   {index:<4}{h_word:<20}{h_score:<10}")
+
+        if not displayed:
+            current_rank = next(i for i, v in enumerate(history, start=1) if v[0] == guess)
+            print("-" * 40)
+            print(f"👉 {current_rank:<4}{guess:<20}{similarity_score:<10} (Current)")
+
+        print("-" * 40)
+        print(f"Total Guesses: {attempts}\n")
+
+
+if __name__ == "__main__":
+    play_game()
